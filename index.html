@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AeroPlayer - Y2K Edition v6.1 Library Master</title>
-    <!-- Librería para MP3 locales -->
+    <title>aeroplayer - y2k edition v6.2</title>
+    <!-- library for local mp3s -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
     <style>
         /* --- CORE SYSTEM STYLES --- */
@@ -14,9 +14,9 @@
             --glass-shadow: 0 25px 60px rgba(0, 0, 0, 0.35);
             --system-font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             
-            /* Variables Dinámicas */
+            /* dynamic variables */
             --theme-r: 79; --theme-g: 172; --theme-b: 254;
-            --window-tint: rgba(255, 255, 255, 0.25); 
+            --window-tint: rgba(255, 255, 255, 0.35); 
         }
 
         body {
@@ -26,15 +26,16 @@
             font-family: var(--system-font);
             background: #000;
             user-select: none;
+            text-transform: lowercase; /* force lowercase everywhere */
         }
 
-        /* --- FONDO LÍQUIDO --- */
+        /* --- LIQUID BACKGROUND --- */
         #bg-canvas {
             position: fixed;
             top: 0; left: 0;
             width: 100%; height: 100%;
             z-index: -1; 
-            filter: blur(70px) saturate(130%) brightness(0.9);
+            filter: blur(70px) saturate(130%) brightness(0.95);
             transform: scale(1.2); 
         }
 
@@ -52,7 +53,7 @@
         .icon-img { font-size: 42px; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3)); display: flex; justify-content: center; align-items: center; height: 50px; width: 50px;}
         .icon-label { color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8); font-size: 11px; margin-top: 5px; text-align: center; font-weight: 600; line-height: 1.2; }
 
-        /* Iconos SVG Custom */
+        /* custom svg icons */
         .search-icon svg { width: 40px; height: 40px; fill: #fff; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.4)); background: linear-gradient(135deg, #00C9FF, #92FE9D); border-radius: 12px; padding: 5px; box-sizing: border-box; border: 1px solid rgba(255,255,255,0.5); }
         .library-icon svg { width: 40px; height: 40px; fill: #fff; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.4)); background: linear-gradient(135deg, #FF9A9E, #FECFEF); border-radius: 12px; padding: 5px; box-sizing: border-box; border: 1px solid rgba(255,255,255,0.5); }
 
@@ -61,24 +62,24 @@
             position: absolute; 
             background: var(--window-tint);
             backdrop-filter: blur(30px) saturate(120%); -webkit-backdrop-filter: blur(30px) saturate(120%);
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            border-top: 1px solid rgba(255, 255, 255, 0.8);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            border-top: 1px solid rgba(255, 255, 255, 0.9);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.3);
             border-radius: 16px;
             box-shadow: var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,0.6), inset 0 0 20px rgba(255,255,255,0.1);
             display: flex; flex-direction: column; overflow: hidden;
-            display: none; /* Oculto por defecto */
+            display: none; /* hidden by default */
         }
         .window.active { display: flex; z-index: 100; }
 
         .window-header {
             height: 32px;
-            background: linear-gradient(to bottom, rgba(255,255,255,0.3), rgba(255,255,255,0.1));
-            border-bottom: 1px solid rgba(255,255,255,0.2);
+            background: linear-gradient(to bottom, rgba(255,255,255,0.4), rgba(255,255,255,0.1));
+            border-bottom: 1px solid rgba(255,255,255,0.3);
             display: flex; align-items: center; justify-content: space-between;
             padding: 0 12px; cursor: grab;
         }
-        .window-title { font-size: 13px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 6px; text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+        .window-title { font-size: 13px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 6px; text-shadow: 0 1px 3px rgba(0,0,0,0.4); }
         .win-controls { display:flex; gap:6px; }
         .win-dot { width:12px; height:12px; border-radius:50%; box-shadow:0 1px 3px rgba(0,0,0,0.3); cursor: pointer;}
         .close-dot { background:#ff5f56; } .min-dot { background:#ffbd2e; } .max-dot { background:#27c93f; }
@@ -89,94 +90,116 @@
         .top-section { display: flex; gap: 15px; height: 140px; }
         .display-group { flex: 1; display: flex; flex-direction: column; gap: 10px; justify-content: space-between; }
 
-        /* Visualizador */
+        /* visualizer (lighter) */
         .player-screen {
-            background: rgba(0, 10, 30, 0.3);
-            box-shadow: inset 0 2px 10px rgba(0,0,0,0.2), 0 1px 0 rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.25);
+            background: rgba(255, 255, 255, 0.15); /* Lighter background */
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.1), 0 1px 0 rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.4);
             border-radius: 10px; height: 85px; position: relative; overflow: hidden;
         }
         .player-screen::after {
             content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 50%;
-            background: linear-gradient(to bottom, rgba(255,255,255,0.1) 0%, transparent 100%); pointer-events: none;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.2) 0%, transparent 100%); pointer-events: none;
         }
         canvas { width: 100%; height: 100%; display: block; }
 
+        /* track info (lighter) */
         .track-info-container {
             height: 45px; display: flex; flex-direction: column; justify-content: center;
-            background: rgba(0, 0, 0, 0.2); border-radius: 8px; padding: 0 12px;
-            border: 1px solid rgba(255,255,255,0.2); box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+            background: rgba(255, 255, 255, 0.15); /* Lighter background */
+            border-radius: 8px; padding: 0 12px;
+            border: 1px solid rgba(255,255,255,0.3); box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
         }
         .text-line { white-space: nowrap; overflow: hidden; position: relative; width: 100%; }
         .scrolling { display: inline-block; padding-left: 100%; animation: marquee 10s linear infinite; }
         @keyframes marquee { 0% { transform: translate(0, 0); } 100% { transform: translate(-100%, 0); } }
-        .track-title { font-size: 15px; font-weight: 800; color: #fff; letter-spacing: 0.3px; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
-        .track-artist { font-size: 12px; color: #eee; margin-top: 2px; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+        .track-title { font-size: 15px; font-weight: 800; color: #fff; letter-spacing: 0.3px; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+        .track-artist { font-size: 12px; color: #eee; margin-top: 2px; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
 
         .artwork-box {
-            width: 140px; height: 140px; background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.4); border-radius: 12px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            width: 140px; height: 140px; background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.5); border-radius: 12px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
             display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative;
         }
         #album-art { width: 100%; height: 100%; object-fit: cover; }
 
         .progress-container { display: flex; align-items: center; gap: 10px; padding: 0 5px; margin-top: 5px; }
-        .time-display { font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #fff; font-weight: 700; min-width: 35px; text-shadow: 0 1px 3px rgba(0,0,0,0.7); text-align: center;}
-        #seek-slider { flex: 1; -webkit-appearance: none; height: 6px; background: rgba(0,0,0,0.2); border-radius: 3px; outline: none; box-shadow: inset 0 1px 2px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.2); }
-        #seek-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #fff; cursor: pointer; box-shadow: 0 0 10px rgba(255,255,255,0.9); }
+        .time-display { font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #fff; font-weight: 700; min-width: 35px; text-shadow: 0 1px 3px rgba(0,0,0,0.5); text-align: center;}
+        
+        /* sliders (elegant & thin) */
+        #seek-slider, #volume-slider { 
+            -webkit-appearance: none; 
+            height: 4px; /* Thin and elegant */
+            border-radius: 2px; 
+            background: rgba(255,255,255,0.3); /* Lighter track */
+            outline: none; 
+            border: 1px solid rgba(255,255,255,0.4); 
+        }
+        #seek-slider { flex: 1; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1); }
+        #volume-slider { width: 100%; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1); }
 
-        .controls-bar { display: flex; align-items: center; justify-content: space-between; height: 50px; background: rgba(255,255,255,0.1); border-radius: 12px; padding: 0 15px; border: 1px solid rgba(255,255,255,0.25); margin-top: 5px; }
+        /* thumbs */
+        #seek-slider::-webkit-slider-thumb, #volume-slider::-webkit-slider-thumb { 
+            -webkit-appearance: none; 
+            width: 12px; height: 12px; 
+            border-radius: 50%; 
+            background: #fff; 
+            cursor: pointer; 
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+            border: 1px solid #ddd;
+            margin-top: -1px; /* Align if needed */
+        }
+
+        .controls-bar { display: flex; align-items: center; justify-content: space-between; height: 50px; background: rgba(255,255,255,0.15); border-radius: 12px; padding: 0 15px; border: 1px solid rgba(255,255,255,0.3); margin-top: 5px; }
         .playback-controls { display: flex; align-items: center; gap: 15px; position: absolute; left: 50%; transform: translateX(-50%); }
         .volume-group { display: flex; align-items: center; gap: 8px; width: 120px; }
-        .vol-icon svg { width: 16px; height: 16px; fill: #fff; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6)); }
-        #volume-slider { -webkit-appearance: none; width: 100%; height: 8px; border-radius: 4px; background: linear-gradient(to bottom, rgba(0,0,0,0.4), rgba(0,0,0,0.2)); outline: none; border: 1px solid rgba(255,255,255,0.2); box-shadow: inset 0 1px 3px rgba(0,0,0,0.3); }
-        #volume-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: linear-gradient(135deg, #fff 0%, #ddd 100%); border: 1px solid #fff; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.3); margin-top: -1px; }
+        .vol-icon svg { width: 16px; height: 16px; fill: #fff; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4)); }
 
-        .aero-btn { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4); border-radius: 20px; padding: 0; color: #fff; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; width: 40px; height: 28px; transition: all 0.1s; }
-        .aero-btn:hover { background: rgba(255,255,255,0.3); border-color: #fff; }
-        .aero-btn:active { transform: translateY(1px); background: rgba(255,255,255,0.1); }
-        .aero-btn svg { width: 14px; height: 14px; fill: #fff; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5)); }
-        .eject-btn { width: auto; padding: 0 14px; font-weight: 700; font-size: 11px; letter-spacing: 0.5px; height: 26px; }
-        .play-btn { width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.6); box-shadow: 0 4px 12px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.5); }
-        .play-btn:hover { background: rgba(255,255,255,0.4); box-shadow: 0 0 15px rgba(255,255,255,0.6); }
-        .play-btn svg { width: 18px; height: 18px; fill: #fff; filter: drop-shadow(0 0 3px rgba(0,0,0,0.5)); }
+        .aero-btn { background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.5); border-radius: 20px; padding: 0; color: #fff; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; width: 40px; height: 28px; transition: all 0.1s; font-weight: bold; text-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+        .aero-btn:hover { background: rgba(255,255,255,0.35); border-color: #fff; }
+        .aero-btn:active { transform: translateY(1px); background: rgba(255,255,255,0.15); }
+        .aero-btn svg { width: 14px; height: 14px; fill: #fff; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)); }
+        .eject-btn { width: auto; padding: 0 14px; font-size: 11px; letter-spacing: 0.5px; height: 26px; }
+        .play-btn { width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.3); border: 1px solid rgba(255,255,255,0.7); box-shadow: 0 4px 12px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.6); }
+        .play-btn:hover { background: rgba(255,255,255,0.45); box-shadow: 0 0 15px rgba(255,255,255,0.5); }
+        .play-btn svg { width: 18px; height: 18px; fill: #fff; filter: drop-shadow(0 0 3px rgba(0,0,0,0.3)); }
 
         /* --- BROWSER WINDOW (Search & Library) --- */
         #search-window, #library-window { width: 420px; height: 550px; top: 10%; left: 10%; }
         .browser-body { padding: 0; display: flex; flex-direction: column; height: 100%; }
         
         .search-bar { 
-            padding: 12px; background: rgba(0,0,0,0.1); 
-            display: flex; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 12px; background: rgba(255,255,255,0.1); 
+            display: flex; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.2);
         }
         #search-input {
-            flex: 1; padding: 8px 12px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.3);
+            flex: 1; padding: 8px 12px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.4);
             background: rgba(255,255,255,0.2); color: white; font-family: inherit; outline: none;
-            font-size: 13px; box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+            font-size: 13px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
         }
-        #search-input::placeholder { color: rgba(255,255,255,0.6); }
+        #search-input::placeholder { color: rgba(255,255,255,0.7); }
         
         .results-list { flex: 1; overflow-y: auto; padding: 10px; }
         .results-list::-webkit-scrollbar { width: 6px; }
-        .results-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 3px; }
+        .results-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.4); border-radius: 3px; }
 
         .track-item {
             display: flex; align-items: center; gap: 12px; padding: 10px;
-            border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;
+            border-bottom: 1px solid rgba(255,255,255,0.1); cursor: pointer;
             transition: all 0.2s; border-radius: 8px; margin-bottom: 4px;
         }
-        .track-item:hover { background: rgba(255,255,255,0.2); transform: translateX(5px); }
-        .track-thumb { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        .track-item:hover { background: rgba(255,255,255,0.25); transform: translateX(5px); }
+        .track-thumb { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         .track-data { display: flex; flex-direction: column; overflow: hidden; justify-content: center; }
-        .t-title { font-size: 13px; font-weight: bold; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
-        .t-artist { font-size: 11px; color: #ddd; }
+        .t-title { font-size: 13px; font-weight: bold; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+        .t-artist { font-size: 11px; color: #eee; }
         .t-delete { margin-left: auto; color: #ff5f56; font-size: 18px; cursor: pointer; opacity: 0; }
         .track-item:hover .t-delete { opacity: 1; }
 
         /* Taskbar */
-        .taskbar { position: absolute; bottom: 0; width: 100%; height: 40px; background: rgba(10, 20, 30, 0.7); backdrop-filter: blur(10px); display: flex; align-items: center; border-top: 1px solid rgba(255,255,255,0.1); z-index: 1000; }
-        .start-btn { height: 100%; padding: 0 20px; background: rgba(255,255,255,0.05); display: flex; align-items: center; color: white; font-weight: bold; font-style: italic; font-size: 14px; cursor: pointer; border-right: 1px solid rgba(255,255,255,0.1); }
+        .taskbar { position: absolute; bottom: 0; width: 100%; height: 40px; background: rgba(10, 20, 30, 0.5); backdrop-filter: blur(15px); display: flex; align-items: center; border-top: 1px solid rgba(255,255,255,0.2); z-index: 1000; }
+        .start-btn { height: 100%; padding: 0 20px; background: rgba(255,255,255,0.1); display: flex; align-items: center; color: white; font-weight: bold; font-style: italic; font-size: 14px; cursor: pointer; border-right: 1px solid rgba(255,255,255,0.2); }
         .tray-clock { margin-left: auto; margin-right: 15px; color: white; font-size: 12px; font-weight: 500;}
 
         /* Utilities */
@@ -189,33 +212,33 @@
     <canvas id="bg-canvas"></canvas>
 
     <div class="desktop-container">
-        <!-- Archivos Locales (Single) -->
+        <!-- Local Player -->
         <div class="icon" onclick="openPlayer()">
             <div class="icon-img">🎵</div>
-            <div class="icon-label">Reproductor</div>
+            <div class="icon-label">local player</div>
         </div>
         
-        <!-- Search Music (Piped) -->
+        <!-- Search Music -->
         <div class="icon" onclick="openSearch()">
             <div class="icon-img search-icon">
                 <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
             </div>
-            <div class="icon-label">Music Explorer</div>
+            <div class="icon-label">music search</div>
         </div>
 
-        <!-- NEW: Biblioteca Persistente -->
+        <!-- Library -->
         <div class="icon" onclick="openLibrary()">
             <div class="icon-img library-icon">
                 <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-5 9l-4 2.5v-5l4 2.5z"/></svg>
             </div>
-            <div class="icon-label">💾 Mi Biblioteca</div>
+            <div class="icon-label">my library</div>
         </div>
     </div>
 
-    <!-- REPRODUCTOR (VENTANA 1) -->
+    <!-- PLAYER WINDOW -->
     <div id="player-window" class="window">
         <div class="window-header" onmousedown="dragStart(event, 'player-window')">
-            <div class="window-title">💿 AeroPlayer v6.1</div>
+            <div class="window-title">💿 aeroplayer v6.2</div>
             <div class="win-controls">
                 <div class="win-dot close-dot" onclick="closeWindow('player-window')"></div>
                 <div class="win-dot min-dot"></div>
@@ -229,8 +252,8 @@
                         <canvas id="visualizer"></canvas>
                     </div>
                     <div class="track-info-container">
-                        <div class="text-line track-title"><span id="track-title-text">AEROPLAYER READY...</span></div>
-                        <div class="text-line track-artist"><span id="track-artist-text">System Online</span></div>
+                        <div class="text-line track-title"><span id="track-title-text">aeroplayer ready...</span></div>
+                        <div class="text-line track-artist"><span id="track-artist-text">system online</span></div>
                     </div>
                 </div>
                 <div class="artwork-box">
@@ -243,7 +266,7 @@
                 <span class="time-display" id="duration">0:00</span>
             </div>
             <div class="controls-bar">
-                <button class="aero-btn eject-btn" onclick="document.getElementById('file-input').click()">⏏ ABRIR</button>
+                <button class="aero-btn eject-btn" onclick="document.getElementById('file-input').click()">⏏ open</button>
                 <div class="playback-controls">
                     <button class="aero-btn" id="prev-btn" onclick="prevSong()"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
                     <button class="aero-btn play-btn" id="play-pause-btn"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
@@ -257,53 +280,53 @@
         </div>
     </div>
 
-    <!-- SEARCH BROWSER (VENTANA 2) -->
+    <!-- SEARCH WINDOW -->
     <div id="search-window" class="window">
         <div class="window-header" onmousedown="dragStart(event, 'search-window')">
-            <div class="window-title">🌎 Music Explorer</div>
+            <div class="window-title">🌎 music explorer</div>
             <div class="win-controls">
                 <div class="win-dot close-dot" onclick="closeWindow('search-window')"></div>
             </div>
         </div>
         <div class="window-body browser-body">
             <div class="search-bar">
-                <input type="text" id="search-input" placeholder="Buscar Artista o Canción..." onkeypress="handleSearch(event)">
-                <button class="aero-btn" style="width: auto; padding: 0 12px; font-weight:bold;" onclick="executeSearch()">BUSCAR</button>
+                <input type="text" id="search-input" placeholder="search artist or song..." onkeypress="handleSearch(event)">
+                <button class="aero-btn" style="width: auto; padding: 0 12px; font-weight:bold;" onclick="executeSearch()">search</button>
             </div>
             <div class="results-list" id="results-container">
                 <div style="text-align:center; padding:40px; color:#ddd; font-size:12px; line-height:1.6;">
-                    Bienvenido al Explorador P2P.<br>
-                    Busca y reproduce desde la nube.
+                    welcome to the p2p explorer.<br>
+                    search and stream from the cloud.
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- LIBRARY WINDOW (VENTANA 3) -->
+    <!-- LIBRARY WINDOW -->
     <div id="library-window" class="window">
         <div class="window-header" onmousedown="dragStart(event, 'library-window')">
-            <div class="window-title">💾 Mi Biblioteca Local</div>
+            <div class="window-title">💾 local library</div>
             <div class="win-controls">
                 <div class="win-dot close-dot" onclick="closeWindow('library-window')"></div>
             </div>
         </div>
         <div class="window-body browser-body">
             <div class="search-bar">
-                <button class="aero-btn" style="width: 100%; padding: 8px; font-weight:bold;" onclick="document.getElementById('lib-upload').click()">+ IMPORTAR MP3s</button>
+                <button class="aero-btn" style="width: 100%; padding: 8px; font-weight:bold;" onclick="document.getElementById('lib-upload').click()">+ import mp3s</button>
                 <button class="aero-btn" style="width: auto; padding: 0 12px; background: rgba(255,100,100,0.3);" onclick="clearLibrary()">🗑️</button>
             </div>
             <div class="results-list" id="library-container">
                 <div style="text-align:center; padding:40px; color:#ddd; font-size:12px; line-height:1.6;">
-                    Tu biblioteca está vacía.<br>
-                    Importa archivos y se guardarán en este navegador.
+                    your library is empty.<br>
+                    imported files will be saved in this browser.
                 </div>
             </div>
         </div>
     </div>
 
     <div class="taskbar">
-        <div class="start-btn">Inicio</div>
-        <div class="tray-clock" id="clock">12:00 PM</div>
+        <div class="start-btn">start</div>
+        <div class="tray-clock" id="clock">12:00 pm</div>
     </div>
 
     <canvas id="color-canvas"></canvas>
@@ -314,7 +337,7 @@
         // --- GLOBAL PLAYLIST LOGIC ---
         let currentPlaylist = [];
         let currentPlaylistIndex = 0;
-        let isPipedPlaylist = false; // Flag para saber si es array de objetos Piped o Blobs DB
+        let isPipedPlaylist = false; 
 
         function nextSong() {
             if (currentPlaylist.length === 0) return;
@@ -331,75 +354,58 @@
         function playFromPlaylist() {
             const item = currentPlaylist[currentPlaylistIndex];
             if (isPipedPlaylist) {
-                // Es un objeto de Piped
-                loadPipedTrack(item, true); // true = no resetear playlist
+                loadPipedTrack(item, true); 
             } else {
-                // Es un objeto de DB (track)
-                playLibraryTrack(item, true); // true = no resetear playlist
+                playLibraryTrack(item, true); 
             }
         }
 
-        // --- INDEXED DB ENGINE (LIBRARY PERSISTENCE) ---
+        // --- INDEXED DB ENGINE ---
         let db;
         const DB_NAME = "AeroPlayerDB";
-        const DB_VERSION = 2; // Incrementar versión por cambios
+        const DB_VERSION = 2; 
 
         function initDB() {
             const request = indexedDB.open(DB_NAME, DB_VERSION);
-            
             request.onupgradeneeded = (e) => {
                 const db = e.target.result;
                 if (!db.objectStoreNames.contains("tracks")) {
                     db.createObjectStore("tracks", { keyPath: "id", autoIncrement: true });
                 }
             };
-
             request.onsuccess = (e) => {
                 db = e.target.result;
-                loadLibraryUI(); // Cargar canciones al inicio
+                loadLibraryUI(); 
             };
-
             request.onerror = (e) => console.error("Error DB:", e);
         }
 
         document.getElementById('lib-upload').addEventListener('change', async function(e) {
             const files = e.target.files;
             if (!files.length) return;
-
             const container = document.getElementById('library-container');
-            container.innerHTML = '<div style="padding:20px; text-align:center;">Analizando metadatos...</div>';
-
+            container.innerHTML = '<div style="padding:20px; text-align:center;">processing metadata...</div>';
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
                 await saveTrackToDB(file);
             }
-            
             loadLibraryUI();
-            this.value = ''; // Reset input
+            this.value = ''; 
         });
 
         async function saveTrackToDB(file) {
             return new Promise((resolve) => {
-                // Metadatos por defecto
                 let meta = {
                     title: file.name.replace(/\.[^/.]+$/, ""),
-                    artist: "Desconocido",
+                    artist: "unknown artist",
                     cover: null
                 };
-
-                // Helper para guardar
                 const commit = () => {
                     const transaction = db.transaction(["tracks"], "readwrite");
                     const store = transaction.objectStore("tracks");
-                    store.add({
-                        ...meta,
-                        blob: file,
-                        date: new Date()
-                    });
-                    resolve(); // Importante: resolver promesa
+                    store.add({ ...meta, blob: file, date: new Date() });
+                    resolve(); 
                 };
-
-                // Leer Tags Reales
                 if (window.jsmediatags) {
                     window.jsmediatags.read(file, {
                         onSuccess: function(tag) {
@@ -415,42 +421,31 @@
                             }
                             commit();
                         },
-                        onError: function(error) {
-                            commit(); // Guardar aunque falle la lectura de tags
-                        }
+                        onError: function(error) { commit(); }
                     });
-                } else {
-                    commit();
-                }
+                } else { commit(); }
             });
         }
 
         function loadLibraryUI() {
             if (!db) return;
-            
             const transaction = db.transaction(["tracks"], "readonly");
             const store = transaction.objectStore("tracks");
             const request = store.getAll();
-
             request.onsuccess = () => {
                 const tracks = request.result;
                 const container = document.getElementById('library-container');
                 container.innerHTML = '';
-
                 if (tracks.length === 0) {
-                    container.innerHTML = '<div style="text-align:center; padding:40px; color:#ddd; font-size:12px;">Biblioteca vacía.</div>';
+                    container.innerHTML = '<div style="text-align:center; padding:40px; color:#ddd; font-size:12px;">library empty.</div>';
                     return;
                 }
-
                 tracks.forEach((track, index) => {
                     const div = document.createElement('div');
                     div.className = 'track-item';
-                    
-                    // Usar portada si existe
                     const thumb = track.cover 
                         ? `<img src="${track.cover}" class="track-thumb">` 
                         : `<div style="width:40px; height:40px; background:rgba(255,255,255,0.2); border-radius:4px; display:flex; align-items:center; justify-content:center;">🎵</div>`;
-
                     div.innerHTML = `
                         ${thumb}
                         <div class="track-data">
@@ -460,7 +455,6 @@
                         <span class="t-delete" onclick="event.stopPropagation(); deleteTrack(${track.id})">×</span>
                     `;
                     div.onclick = () => {
-                        // CONFIGURAR PLAYLIST
                         currentPlaylist = tracks;
                         currentPlaylistIndex = index;
                         isPipedPlaylist = false;
@@ -479,7 +473,7 @@
         }
 
         function clearLibrary() {
-            if(confirm("¿Borrar toda la biblioteca local?")) {
+            if(confirm("delete all local library?")) {
                 const transaction = db.transaction(["tracks"], "readwrite");
                 const store = transaction.objectStore("tracks");
                 store.clear();
@@ -489,8 +483,6 @@
 
         function playLibraryTrack(track, isPlaylistNav = false) {
             const url = URL.createObjectURL(track.blob);
-            
-            // UI
             document.getElementById('track-title-text').innerText = track.title;
             document.getElementById('track-artist-text').innerText = track.artist;
             
@@ -505,7 +497,6 @@
             tempImg.src = coverUrl;
 
             openPlayer();
-            
             initAudioEngine().then(() => {
                 audioElement.src = url;
                 audioElement.play().then(() => {
@@ -516,7 +507,7 @@
             });
         }
 
-        // --- PIPED API ENGINE (FAILOVER) ---
+        // --- PIPED API ENGINE ---
         const PIPED_INSTANCES = [
             "https://pipedapi.kavin.rocks", "https://pipedapi.smnz.de", 
             "https://pipedapi.adminforge.de", "https://api.piped.privacy.com.de", 
@@ -539,19 +530,13 @@
         async function executeSearch() {
             const query = document.getElementById('search-input').value;
             if(!query) return;
-            document.getElementById('results-container').innerHTML = '<div style="text-align:center; padding:20px; color:white;">Buscando...</div>';
+            document.getElementById('results-container').innerHTML = '<div style="text-align:center; padding:20px; color:white;">searching...</div>';
             try {
                 const data = await fetchWithFailover(`/search?q=${encodeURIComponent(query)}&filter=music_songs`);
-                
-                // Guardar resultados como "Playlist Temporal"
-                // Pero NO los establecemos como currentPlaylist hasta que se haga click en uno
                 renderResults(data.items);
-                
-                // Guardamos referencia a la lista de resultados actual para usarla de playlist
                 window.lastSearchResults = data.items.filter(item => item.type === 'stream');
-
             } catch(e) {
-                document.getElementById('results-container').innerHTML = '<div style="color:salmon; text-align:center;">Red saturada.</div>';
+                document.getElementById('results-container').innerHTML = '<div style="color:salmon; text-align:center;">network overloaded.</div>';
             }
         }
         function handleSearch(e) { if(e.key === 'Enter') executeSearch(); }
@@ -559,18 +544,14 @@
         function renderResults(items) {
             const container = document.getElementById('results-container');
             container.innerHTML = '';
-            
-            // Filtrar streams válidos
             const validItems = items.filter(item => item.type === 'stream');
-
-            if(validItems.length === 0) { container.innerHTML = '<div style="text-align:center; color:#ccc;">Sin resultados</div>'; return; }
+            if(validItems.length === 0) { container.innerHTML = '<div style="text-align:center; color:#ccc;">no results</div>'; return; }
             
             validItems.forEach((item, index) => {
                 const div = document.createElement('div');
                 div.className = 'track-item';
                 div.innerHTML = `<img src="${item.thumbnail}" class="track-thumb"><div class="track-data"><span class="t-title">${item.title}</span><span class="t-artist">${item.uploaderName}</span></div>`;
                 div.onclick = () => {
-                    // CONFIGURAR PLAYLIST (Resultados de búsqueda)
                     currentPlaylist = validItems;
                     currentPlaylistIndex = index;
                     isPipedPlaylist = true;
@@ -581,12 +562,8 @@
         }
 
         async function loadPipedTrack(item, isPlaylistNav = false) {
-            if(!isPlaylistNav) {
-                // Solo feedback si es carga inicial, si es nav auto no molestar tanto
-            }
-            document.getElementById('track-title-text').innerText = "CONECTANDO...";
-            document.getElementById('track-artist-text').innerText = "Streaming...";
-            
+            document.getElementById('track-title-text').innerText = "connecting...";
+            document.getElementById('track-artist-text').innerText = "streaming...";
             const img = document.getElementById('album-art');
             img.crossOrigin = "Anonymous";
             img.onload = () => { const safeHSL = extractSafeColor(img); interpolateColor(safeHSL.h, safeHSL.s, safeHSL.l); };
@@ -605,13 +582,13 @@
                     document.getElementById('track-artist-text').innerText = item.uploaderName;
                     audioElement.play().then(() => { isPlaying = true; playBtn.innerHTML = iconPause; renderVisualizer(); });
                 }
-            } catch(e) { alert("Error stream"); }
+            } catch(e) { alert("stream error"); }
         }
 
         // --- CORE SYSTEM ---
         function updateClock() {
             const now = new Date();
-            let hours = now.getHours(); const ampm = hours >= 12 ? 'PM' : 'AM'; hours = hours % 12 || 12;
+            let hours = now.getHours(); const ampm = hours >= 12 ? 'pm' : 'am'; hours = hours % 12 || 12;
             const minutes = String(now.getMinutes()).padStart(2, '0');
             document.getElementById('clock').innerText = `${hours}:${minutes} ${ampm}`;
         }
@@ -624,10 +601,7 @@
         const audioElement = new Audio();
         audioElement.crossOrigin = "anonymous"; 
         
-        // AUTO-AVANCE DE CANCIÓN
-        audioElement.addEventListener('ended', () => {
-            nextSong();
-        });
+        audioElement.addEventListener('ended', () => { nextSong(); });
 
         const canvas = document.getElementById('visualizer');
         const ctx = canvas.getContext('2d');
@@ -789,7 +763,6 @@
         });
 
         volumeSlider.addEventListener('input', (e) => { if (gainNode) gainNode.gain.value = e.target.value; });
-        audioElement.addEventListener('timeupdate', () => { if (!isDraggingSlider) { seekSlider.max = audioElement.duration; seekSlider.value = audioElement.currentTime; currTimeText.innerText = formatTime(audioElement.currentTime); durTimeText.innerText = formatTime(audioElement.duration); }});
         seekSlider.addEventListener('input', () => { isDraggingSlider = true; currTimeText.innerText = formatTime(seekSlider.value); });
         seekSlider.addEventListener('change', () => { audioElement.currentTime = seekSlider.value; isDraggingSlider = false; });
         function formatTime(seconds) { const min = Math.floor(seconds / 60); const sec = Math.floor(seconds % 60); return `${min}:${sec < 10 ? '0' : ''}${sec}`; }
@@ -797,6 +770,16 @@
         function renderVisualizer() {
             if (!isPlaying) return;
             animationFrameId = requestAnimationFrame(renderVisualizer);
+
+            // SMOOTH SEEK LOGIC
+            if (!isDraggingSlider && !audioElement.paused) {
+                seekSlider.value = audioElement.currentTime;
+                currTimeText.innerText = formatTime(audioElement.currentTime);
+                if(!isNaN(audioElement.duration)) {
+                     seekSlider.max = audioElement.duration;
+                     durTimeText.innerText = formatTime(audioElement.duration);
+                }
+            }
 
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
