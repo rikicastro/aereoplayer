@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AeroPlayer - Y2K Edition v4.3 PKCE</title>
+    <title>AeroPlayer - Y2K Edition v4.3 PKCE Fix</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
     <style>
         /* --- CORE SYSTEM STYLES --- */
@@ -260,6 +260,7 @@
     <script>
         // --- SPOTIFY CONFIG (PKCE FLOW) ---
         const CLIENT_ID = '072d3cbd62004636bbec7624d17cbf20'; 
+        // Generamos la redirect_uri de forma segura y limpia
         const REDIRECT_URI = window.location.origin + window.location.pathname; 
         const SCOPES = 'user-library-read';
         let spotifyToken = null;
@@ -285,6 +286,7 @@
         // 2. Iniciar Login (Redirige a Spotify con challenge)
         async function spotifyLogin() {
             console.log("Iniciando PKCE Login...");
+            console.log("Redirect URI esperada:", REDIRECT_URI);
             const verifier = generateRandomString(128);
             localStorage.setItem('spotify_verifier', verifier); // Guardar verifier temporalmente
 
