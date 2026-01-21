@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AeroPlayer - Y2K Edition v4.2 Spotify Fix</title>
+    <title>AeroPlayer - Y2K Edition v4.3 PKCE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
     <style>
         /* --- CORE SYSTEM STYLES --- */
@@ -43,7 +43,7 @@
             display: flex; flex-direction: column; gap: 20px; 
             width: 100px; 
             position: absolute; top: 0; left: 0;
-            z-index: 20; /* Z-Index alto para asegurar click */
+            z-index: 20; 
         }
         .icon { width: 80px; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: transform 0.1s; }
         .icon:hover { background-color: rgba(255,255,255,0.25); border-radius: 8px; backdrop-filter: blur(5px); }
@@ -194,7 +194,7 @@
     <!-- REPRODUCTOR (VENTANA 1) -->
     <div id="player-window" class="window">
         <div class="window-header" onmousedown="dragStart(event, 'player-window')">
-            <div class="window-title">💿 AeroPlayer v4.2</div>
+            <div class="window-title">💿 AeroPlayer v4.3</div>
             <div class="win-controls">
                 <div class="win-dot close-dot" onclick="closeWindow('player-window')"></div>
                 <div class="win-dot min-dot"></div>
@@ -258,47 +258,99 @@
     <input type="file" id="file-input" accept="audio/*">
 
     <script>
-        // --- SPOTIFY CONFIG ---
+        // --- SPOTIFY CONFIG (PKCE FLOW) ---
         const CLIENT_ID = '072d3cbd62004636bbec7624d17cbf20'; 
-        // Generamos la redirect_uri de forma segura y limpia
         const REDIRECT_URI = window.location.origin + window.location.pathname; 
         const SCOPES = 'user-library-read';
         let spotifyToken = null;
         let isSpotifyMode = false; 
 
-        // --- AUTH LOGIC (CORREGIDO) ---
-        function spotifyLogin() {
-            console.log("Iniciando login de Spotify...");
-            console.log("Redirect URI esperada:", REDIRECT_URI);
-
-            let url = 'https://accounts.spotify.com/authorize';
-            url += '?response_type=token';
-            url += '&client_id=' + encodeURIComponent(CLIENT_ID);
-            url += '&scope=' + encodeURIComponent(SCOPES);
-            url += '&redirect_uri=' + encodeURIComponent(REDIRECT_URI);
-            
-            // Redirección directa sin confirmación (para evitar bloqueos)
-            try {
-                window.location = url;
-            } catch (e) {
-                alert("Error al redirigir: " + e);
-            }
+        // --- AUTH LOGIC (PKCE IMPLEMENTATION) ---
+        
+        // 1. Funciones Criptográficas para PKCE
+        function generateRandomString(length) {
+            let text = '';
+            let possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            for (let i = 0; i < length; i++) { text += possible.charAt(Math.floor(Math.random() * possible.length)); }
+            return text;
         }
 
-        function checkToken() {
-            const hash = window.location.hash;
-            if (hash) {
-                const params = new URLSearchParams(hash.substring(1));
-                if (params.has('access_token')) {
-                    spotifyToken = params.get('access_token');
-                    console.log("Token recibido:", spotifyToken);
-                    document.getElementById('spotify-connect-icon').style.display = 'none';
-                    document.getElementById('spotify-tracks-icon').style.display = 'flex';
-                    window.location.hash = ''; // Limpiar URL
-                    fetchSpotifyTracks();
-                } else if (params.has('error')) {
-                    alert("Error conectando con Spotify: " + params.get('error'));
+        async function generateCodeChallenge(codeVerifier) {
+            const data = new TextEncoder().encode(codeVerifier);
+            const digest = await window.crypto.subtle.digest('SHA-256', data);
+            return btoa(String.fromCharCode.apply(null, [...new Uint8Array(digest)]))
+                .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+
+        // 2. Iniciar Login (Redirige a Spotify con challenge)
+        async function spotifyLogin() {
+            console.log("Iniciando PKCE Login...");
+            const verifier = generateRandomString(128);
+            localStorage.setItem('spotify_verifier', verifier); // Guardar verifier temporalmente
+
+            const challenge = await generateCodeChallenge(verifier);
+            
+            const params = new URLSearchParams({
+                response_type: 'code',
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                redirect_uri: REDIRECT_URI,
+                code_challenge_method: 'S256',
+                code_challenge: challenge
+            });
+
+            window.location = 'https://accounts.spotify.com/authorize?' + params.toString();
+        }
+
+        // 3. Chequear retorno y canjear código por token
+        async function checkToken() {
+            const params = new URLSearchParams(window.location.search);
+            const code = params.get('code');
+
+            // Si hay código en la URL, lo canjeamos
+            if (code) {
+                console.log("Código recibido, canjeando por token...");
+                const verifier = localStorage.getItem('spotify_verifier');
+                
+                if(!verifier) { console.error("No se encontró verifier"); return; }
+
+                const body = new URLSearchParams({
+                    grant_type: 'authorization_code',
+                    client_id: CLIENT_ID,
+                    code: code,
+                    redirect_uri: REDIRECT_URI,
+                    code_verifier: verifier
+                });
+
+                try {
+                    const response = await fetch('https://accounts.spotify.com/api/token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: body
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        spotifyToken = data.access_token;
+                        console.log("Login Exitoso!");
+                        
+                        // Limpiar URL
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                        
+                        // Mostrar UI
+                        document.getElementById('spotify-connect-icon').style.display = 'none';
+                        document.getElementById('spotify-tracks-icon').style.display = 'flex';
+                        fetchSpotifyTracks();
+                    } else {
+                        const err = await response.json();
+                        console.error("Error canjeando token:", err);
+                        alert("Error de autenticación Spotify: " + err.error_description);
+                    }
+                } catch (e) {
+                    console.error("Error de red:", e);
                 }
+            } else if (params.has('error')) {
+                alert("Error Spotify: " + params.get('error'));
             }
         }
 
@@ -336,21 +388,17 @@
                 return;
             }
 
-            // Modo Spotify Activado
             isSpotifyMode = true; 
             
-            // UI Update
             document.getElementById('track-title-text').innerText = track.name;
             document.getElementById('track-artist-text').innerText = track.artists[0].name;
             document.getElementById('album-art').src = track.album.images[0].url;
             
-            // Audio
             await initAudioEngine();
             audioElement.src = track.preview_url;
             
-            // Extraer color para el fondo
             const tempImg = new Image();
-            tempImg.crossOrigin = "Anonymous"; // Importante para Spotify CDN
+            tempImg.crossOrigin = "Anonymous"; 
             tempImg.onload = function() {
                 const safeHSL = extractSafeColor(tempImg);
                 interpolateColor(safeHSL.h, safeHSL.s, safeHSL.l);
@@ -648,7 +696,7 @@
         function resizeCanvas() { canvas.width = canvas.parentElement.offsetWidth; canvas.height = canvas.parentElement.offsetHeight; bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight; initParticles(); initBgBlobs(); }
         window.addEventListener('resize', resizeCanvas); setTimeout(resizeCanvas, 100);
         
-        // Check for spotify return on load
+        // Init Check
         checkToken();
 
     </script>
