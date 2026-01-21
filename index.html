@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AeroPlayer - Y2K Edition v4.0 Spotify</title>
+    <title>AeroPlayer - Y2K Edition v4.2 Spotify Fix</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
     <style>
         /* --- CORE SYSTEM STYLES --- */
@@ -38,7 +38,13 @@
         }
 
         /* --- ICONS --- */
-        .desktop-container { padding: 20px; display: flex; flex-direction: column; gap: 20px; width: 100px; position: absolute; z-index: 10;}
+        .desktop-container { 
+            padding: 20px; 
+            display: flex; flex-direction: column; gap: 20px; 
+            width: 100px; 
+            position: absolute; top: 0; left: 0;
+            z-index: 20; /* Z-Index alto para asegurar click */
+        }
         .icon { width: 80px; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: transform 0.1s; }
         .icon:hover { background-color: rgba(255,255,255,0.25); border-radius: 8px; backdrop-filter: blur(5px); }
         .icon:active { transform: scale(0.95); }
@@ -188,7 +194,7 @@
     <!-- REPRODUCTOR (VENTANA 1) -->
     <div id="player-window" class="window">
         <div class="window-header" onmousedown="dragStart(event, 'player-window')">
-            <div class="window-title">💿 AeroPlayer v4.0</div>
+            <div class="window-title">💿 AeroPlayer v4.2</div>
             <div class="win-controls">
                 <div class="win-dot close-dot" onclick="closeWindow('player-window')"></div>
                 <div class="win-dot min-dot"></div>
@@ -254,19 +260,29 @@
     <script>
         // --- SPOTIFY CONFIG ---
         const CLIENT_ID = '072d3cbd62004636bbec7624d17cbf20'; 
-        const REDIRECT_URI = window.location.href.split('#')[0]; // URL actual
+        // Generamos la redirect_uri de forma segura y limpia
+        const REDIRECT_URI = window.location.origin + window.location.pathname; 
         const SCOPES = 'user-library-read';
         let spotifyToken = null;
-        let isSpotifyMode = false; // Flag para saber si simulamos el visualizador
+        let isSpotifyMode = false; 
 
-        // --- AUTH LOGIC ---
+        // --- AUTH LOGIC (CORREGIDO) ---
         function spotifyLogin() {
+            console.log("Iniciando login de Spotify...");
+            console.log("Redirect URI esperada:", REDIRECT_URI);
+
             let url = 'https://accounts.spotify.com/authorize';
             url += '?response_type=token';
             url += '&client_id=' + encodeURIComponent(CLIENT_ID);
             url += '&scope=' + encodeURIComponent(SCOPES);
             url += '&redirect_uri=' + encodeURIComponent(REDIRECT_URI);
-            window.location = url;
+            
+            // Redirección directa sin confirmación (para evitar bloqueos)
+            try {
+                window.location = url;
+            } catch (e) {
+                alert("Error al redirigir: " + e);
+            }
         }
 
         function checkToken() {
@@ -275,10 +291,13 @@
                 const params = new URLSearchParams(hash.substring(1));
                 if (params.has('access_token')) {
                     spotifyToken = params.get('access_token');
+                    console.log("Token recibido:", spotifyToken);
                     document.getElementById('spotify-connect-icon').style.display = 'none';
                     document.getElementById('spotify-tracks-icon').style.display = 'flex';
                     window.location.hash = ''; // Limpiar URL
                     fetchSpotifyTracks();
+                } else if (params.has('error')) {
+                    alert("Error conectando con Spotify: " + params.get('error'));
                 }
             }
         }
