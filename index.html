@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AeroPlayer - Y2K Edition v6.0 Local Library</title>
+    <title>AeroPlayer - Y2K Edition v6.1 Library Master</title>
     <!-- Librería para MP3 locales -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
     <style>
@@ -215,7 +215,7 @@
     <!-- REPRODUCTOR (VENTANA 1) -->
     <div id="player-window" class="window">
         <div class="window-header" onmousedown="dragStart(event, 'player-window')">
-            <div class="window-title">💿 AeroPlayer v6.0</div>
+            <div class="window-title">💿 AeroPlayer v6.1</div>
             <div class="win-controls">
                 <div class="win-dot close-dot" onclick="closeWindow('player-window')"></div>
                 <div class="win-dot min-dot"></div>
@@ -245,9 +245,9 @@
             <div class="controls-bar">
                 <button class="aero-btn eject-btn" onclick="document.getElementById('file-input').click()">⏏ ABRIR</button>
                 <div class="playback-controls">
-                    <button class="aero-btn" id="prev-btn"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
+                    <button class="aero-btn" id="prev-btn" onclick="prevSong()"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
                     <button class="aero-btn play-btn" id="play-pause-btn"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
-                    <button class="aero-btn" id="next-btn"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
+                    <button class="aero-btn" id="next-btn" onclick="nextSong()"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
                 </div>
                 <div class="volume-group">
                     <div class="vol-icon"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></div>
@@ -311,10 +311,38 @@
     <input type="file" id="lib-upload" multiple accept="audio/*">
 
     <script>
+        // --- GLOBAL PLAYLIST LOGIC ---
+        let currentPlaylist = [];
+        let currentPlaylistIndex = 0;
+        let isPipedPlaylist = false; // Flag para saber si es array de objetos Piped o Blobs DB
+
+        function nextSong() {
+            if (currentPlaylist.length === 0) return;
+            currentPlaylistIndex = (currentPlaylistIndex + 1) % currentPlaylist.length;
+            playFromPlaylist();
+        }
+
+        function prevSong() {
+            if (currentPlaylist.length === 0) return;
+            currentPlaylistIndex = (currentPlaylistIndex - 1 + currentPlaylist.length) % currentPlaylist.length;
+            playFromPlaylist();
+        }
+
+        function playFromPlaylist() {
+            const item = currentPlaylist[currentPlaylistIndex];
+            if (isPipedPlaylist) {
+                // Es un objeto de Piped
+                loadPipedTrack(item, true); // true = no resetear playlist
+            } else {
+                // Es un objeto de DB (track)
+                playLibraryTrack(item, true); // true = no resetear playlist
+            }
+        }
+
         // --- INDEXED DB ENGINE (LIBRARY PERSISTENCE) ---
         let db;
         const DB_NAME = "AeroPlayerDB";
-        const DB_VERSION = 1;
+        const DB_VERSION = 2; // Incrementar versión por cambios
 
         function initDB() {
             const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -339,7 +367,7 @@
             if (!files.length) return;
 
             const container = document.getElementById('library-container');
-            container.innerHTML = '<div style="padding:20px; text-align:center;">Importando...</div>';
+            container.innerHTML = '<div style="padding:20px; text-align:center;">Analizando metadatos...</div>';
 
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
@@ -352,22 +380,48 @@
 
         async function saveTrackToDB(file) {
             return new Promise((resolve) => {
-                // Intentar leer metadata básico
-                let title = file.name;
-                let artist = "Desconocido";
-                
-                // Guardar en DB
-                const transaction = db.transaction(["tracks"], "readwrite");
-                const store = transaction.objectStore("tracks");
-                const request = store.add({
-                    title: title,
-                    artist: artist,
-                    blob: file,
-                    date: new Date()
-                });
-                
-                request.onsuccess = () => resolve();
-                request.onerror = () => resolve(); // Continuar aunque falle uno
+                // Metadatos por defecto
+                let meta = {
+                    title: file.name.replace(/\.[^/.]+$/, ""),
+                    artist: "Desconocido",
+                    cover: null
+                };
+
+                // Helper para guardar
+                const commit = () => {
+                    const transaction = db.transaction(["tracks"], "readwrite");
+                    const store = transaction.objectStore("tracks");
+                    store.add({
+                        ...meta,
+                        blob: file,
+                        date: new Date()
+                    });
+                    resolve(); // Importante: resolver promesa
+                };
+
+                // Leer Tags Reales
+                if (window.jsmediatags) {
+                    window.jsmediatags.read(file, {
+                        onSuccess: function(tag) {
+                            const tags = tag.tags;
+                            if (tags.title) meta.title = tags.title;
+                            if (tags.artist) meta.artist = tags.artist;
+                            if (tags.picture) {
+                                let base64String = "";
+                                for (let i = 0; i < tags.picture.data.length; i++) {
+                                    base64String += String.fromCharCode(tags.picture.data[i]);
+                                }
+                                meta.cover = "data:" + tags.picture.format + ";base64," + window.btoa(base64String);
+                            }
+                            commit();
+                        },
+                        onError: function(error) {
+                            commit(); // Guardar aunque falle la lectura de tags
+                        }
+                    });
+                } else {
+                    commit();
+                }
             });
         }
 
@@ -388,18 +442,30 @@
                     return;
                 }
 
-                tracks.forEach(track => {
+                tracks.forEach((track, index) => {
                     const div = document.createElement('div');
                     div.className = 'track-item';
+                    
+                    // Usar portada si existe
+                    const thumb = track.cover 
+                        ? `<img src="${track.cover}" class="track-thumb">` 
+                        : `<div style="width:40px; height:40px; background:rgba(255,255,255,0.2); border-radius:4px; display:flex; align-items:center; justify-content:center;">🎵</div>`;
+
                     div.innerHTML = `
-                        <div style="width:40px; height:40px; background:rgba(255,255,255,0.2); border-radius:4px; display:flex; align-items:center; justify-content:center;">🎵</div>
+                        ${thumb}
                         <div class="track-data">
                             <span class="t-title">${track.title}</span>
                             <span class="t-artist">${track.artist}</span>
                         </div>
                         <span class="t-delete" onclick="event.stopPropagation(); deleteTrack(${track.id})">×</span>
                     `;
-                    div.onclick = () => playLibraryTrack(track);
+                    div.onclick = () => {
+                        // CONFIGURAR PLAYLIST
+                        currentPlaylist = tracks;
+                        currentPlaylistIndex = index;
+                        isPipedPlaylist = false;
+                        playFromPlaylist();
+                    };
                     container.appendChild(div);
                 });
             };
@@ -421,37 +487,22 @@
             }
         }
 
-        function playLibraryTrack(track) {
+        function playLibraryTrack(track, isPlaylistNav = false) {
             const url = URL.createObjectURL(track.blob);
             
             // UI
             document.getElementById('track-title-text').innerText = track.title;
-            document.getElementById('track-artist-text').innerText = "Biblioteca Local";
-            document.getElementById('album-art').src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0NSIgZmlsbD0iIzIyMiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjE1IiBmaWxsPSIjZmE1MjUyIi8+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iNSIgZmlsbD0iIzAwMCIvPjwvc3ZnPg=="; // Vinyl default
+            document.getElementById('track-artist-text').innerText = track.artist;
             
-            // Intentar leer tags del blob real para el cover
-            if (window.jsmediatags) {
-                window.jsmediatags.read(track.blob, {
-                    onSuccess: function(tag) {
-                        const tags = tag.tags;
-                        if(tags.picture) {
-                            let base64String = "";
-                            for(let i=0; i<tags.picture.data.length; i++) base64String+=String.fromCharCode(tags.picture.data[i]);
-                            const base64 = "data:"+tags.picture.format+";base64,"+window.btoa(base64String);
-                            document.getElementById('album-art').src = base64;
-                            
-                            const tempImg = new Image();
-                            tempImg.onload = function() {
-                                const safeHSL = extractSafeColor(tempImg);
-                                interpolateColor(safeHSL.h, safeHSL.s, safeHSL.l);
-                            }
-                            tempImg.src = base64;
-                        }
-                    }
-                });
-            } else {
-                interpolateColor(210, 0.9, 0.6); // Reset color
+            const coverUrl = track.cover || "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0NSIgZmlsbD0iIzIyMiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjE1IiBmaWxsPSIjZmE1MjUyIi8+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iNSIgZmlsbD0iIzAwMCIvPjwvc3ZnPg==";
+            document.getElementById('album-art').src = coverUrl;
+            
+            const tempImg = new Image();
+            tempImg.onload = function() {
+                const safeHSL = extractSafeColor(tempImg);
+                interpolateColor(safeHSL.h, safeHSL.s, safeHSL.l);
             }
+            tempImg.src = coverUrl;
 
             openPlayer();
             
@@ -491,7 +542,14 @@
             document.getElementById('results-container').innerHTML = '<div style="text-align:center; padding:20px; color:white;">Buscando...</div>';
             try {
                 const data = await fetchWithFailover(`/search?q=${encodeURIComponent(query)}&filter=music_songs`);
+                
+                // Guardar resultados como "Playlist Temporal"
+                // Pero NO los establecemos como currentPlaylist hasta que se haga click en uno
                 renderResults(data.items);
+                
+                // Guardamos referencia a la lista de resultados actual para usarla de playlist
+                window.lastSearchResults = data.items.filter(item => item.type === 'stream');
+
             } catch(e) {
                 document.getElementById('results-container').innerHTML = '<div style="color:salmon; text-align:center;">Red saturada.</div>';
             }
@@ -501,20 +559,34 @@
         function renderResults(items) {
             const container = document.getElementById('results-container');
             container.innerHTML = '';
-            if(!items || items.length === 0) { container.innerHTML = '<div style="text-align:center; color:#ccc;">Sin resultados</div>'; return; }
-            items.forEach(item => {
-                if(item.type !== 'stream') return;
+            
+            // Filtrar streams válidos
+            const validItems = items.filter(item => item.type === 'stream');
+
+            if(validItems.length === 0) { container.innerHTML = '<div style="text-align:center; color:#ccc;">Sin resultados</div>'; return; }
+            
+            validItems.forEach((item, index) => {
                 const div = document.createElement('div');
                 div.className = 'track-item';
                 div.innerHTML = `<img src="${item.thumbnail}" class="track-thumb"><div class="track-data"><span class="t-title">${item.title}</span><span class="t-artist">${item.uploaderName}</span></div>`;
-                div.onclick = () => loadPipedTrack(item);
+                div.onclick = () => {
+                    // CONFIGURAR PLAYLIST (Resultados de búsqueda)
+                    currentPlaylist = validItems;
+                    currentPlaylistIndex = index;
+                    isPipedPlaylist = true;
+                    playFromPlaylist();
+                };
                 container.appendChild(div);
             });
         }
 
-        async function loadPipedTrack(item) {
-            document.getElementById('track-title-text').innerText = "CARGANDO...";
+        async function loadPipedTrack(item, isPlaylistNav = false) {
+            if(!isPlaylistNav) {
+                // Solo feedback si es carga inicial, si es nav auto no molestar tanto
+            }
+            document.getElementById('track-title-text').innerText = "CONECTANDO...";
             document.getElementById('track-artist-text').innerText = "Streaming...";
+            
             const img = document.getElementById('album-art');
             img.crossOrigin = "Anonymous";
             img.onload = () => { const safeHSL = extractSafeColor(img); interpolateColor(safeHSL.h, safeHSL.s, safeHSL.l); };
@@ -551,6 +623,11 @@
         
         const audioElement = new Audio();
         audioElement.crossOrigin = "anonymous"; 
+        
+        // AUTO-AVANCE DE CANCIÓN
+        audioElement.addEventListener('ended', () => {
+            nextSong();
+        });
 
         const canvas = document.getElementById('visualizer');
         const ctx = canvas.getContext('2d');
