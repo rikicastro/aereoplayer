@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AeroPlayer - Y2K Edition v4.0 Spotify</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
+    <style>
+        /* --- CORE SYSTEM STYLES --- */
+        :root {
+            --glass-surface: rgba(255, 255, 255, 0.35);
+            --glass-border: rgba(255, 255, 255, 0.6); 
+            --glass-shadow: 0 25px 60px rgba(0, 0, 0, 0.35);
+            --system-font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            
+            /* Variables Dinámicas */
+            --theme-r: 79; --theme-g: 172; --theme-b: 254;
+            --window-tint: rgba(255, 255, 255, 0.25); 
+        }
+
+        body {
+            margin: 0; padding: 0;
+            height: 100vh; width: 100vw;
+            overflow: hidden;
+            font-family: var(--system-font);
+            background: #000;
+            user-select: none;
+        }
+
+        /* --- FONDO LÍQUIDO --- */
+        #bg-canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: -1; 
+            filter: blur(70px) saturate(130%) brightness(0.9);
+            transform: scale(1.2); 
+        }
+
+        /* --- ICONS --- */
+        .desktop-container { padding: 20px; display: flex; flex-direction: column; gap: 20px; width: 100px; position: absolute; z-index: 10;}
+        .icon { width: 80px; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: transform 0.1s; }
+        .icon:hover { background-color: rgba(255,255,255,0.25); border-radius: 8px; backdrop-filter: blur(5px); }
+        .icon:active { transform: scale(0.95); }
+        .icon-img { font-size: 42px; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3)); display: flex; justify-content: center; align-items: center; height: 50px; width: 50px;}
+        .icon-label { color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8); font-size: 11px; margin-top: 5px; text-align: center; font-weight: 600; line-height: 1.2; }
+
+        /* Icono Spotify SVG */
+        .spotify-icon svg { width: 40px; height: 40px; fill: #1DB954; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.4)); background: white; border-radius: 50%; }
+
+        /* --- WINDOW SYSTEM (Shared) --- */
+        .window {
+            position: absolute; 
+            background: var(--window-tint);
+            backdrop-filter: blur(30px) saturate(120%); -webkit-backdrop-filter: blur(30px) saturate(120%);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-top: 1px solid rgba(255, 255, 255, 0.8);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            box-shadow: var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,0.6), inset 0 0 20px rgba(255,255,255,0.1);
+            display: flex; flex-direction: column; overflow: hidden;
+            display: none; /* Oculto por defecto */
+        }
+        .window.active { display: flex; z-index: 100; }
+
+        .window-header {
+            height: 32px;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.3), rgba(255,255,255,0.1));
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 12px; cursor: grab;
+        }
+        .window-title { font-size: 13px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 6px; text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+        .win-controls { display:flex; gap:6px; }
+        .win-dot { width:12px; height:12px; border-radius:50%; box-shadow:0 1px 3px rgba(0,0,0,0.3); cursor: pointer;}
+        .close-dot { background:#ff5f56; } .min-dot { background:#ffbd2e; } .max-dot { background:#27c93f; }
+
+        /* --- PLAYER WINDOW SPECIFIC --- */
+        #player-window { width: 580px; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        .player-body { padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+        .top-section { display: flex; gap: 15px; height: 140px; }
+        .display-group { flex: 1; display: flex; flex-direction: column; gap: 10px; justify-content: space-between; }
+
+        /* Visualizador */
+        .player-screen {
+            background: rgba(0, 10, 30, 0.3);
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.2), 0 1px 0 rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 10px; height: 85px; position: relative; overflow: hidden;
+        }
+        .player-screen::after {
+            content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 50%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.1) 0%, transparent 100%); pointer-events: none;
+        }
+        canvas { width: 100%; height: 100%; display: block; }
+
+        .track-info-container {
+            height: 45px; display: flex; flex-direction: column; justify-content: center;
+            background: rgba(0, 0, 0, 0.2); border-radius: 8px; padding: 0 12px;
+            border: 1px solid rgba(255,255,255,0.2); box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .text-line { white-space: nowrap; overflow: hidden; position: relative; width: 100%; }
+        .scrolling { display: inline-block; padding-left: 100%; animation: marquee 10s linear infinite; }
+        @keyframes marquee { 0% { transform: translate(0, 0); } 100% { transform: translate(-100%, 0); } }
+        .track-title { font-size: 15px; font-weight: 800; color: #fff; letter-spacing: 0.3px; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+        .track-artist { font-size: 12px; color: #eee; margin-top: 2px; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+
+        .artwork-box {
+            width: 140px; height: 140px; background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.4); border-radius: 12px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative;
+        }
+        #album-art { width: 100%; height: 100%; object-fit: cover; }
+
+        .progress-container { display: flex; align-items: center; gap: 10px; padding: 0 5px; margin-top: 5px; }
+        .time-display { font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #fff; font-weight: 700; min-width: 35px; text-shadow: 0 1px 3px rgba(0,0,0,0.7); text-align: center;}
+        #seek-slider { flex: 1; -webkit-appearance: none; height: 6px; background: rgba(0,0,0,0.2); border-radius: 3px; outline: none; box-shadow: inset 0 1px 2px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.2); }
+        #seek-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #fff; cursor: pointer; box-shadow: 0 0 10px rgba(255,255,255,0.9); }
+
+        .controls-bar { display: flex; align-items: center; justify-content: space-between; height: 50px; background: rgba(255,255,255,0.1); border-radius: 12px; padding: 0 15px; border: 1px solid rgba(255,255,255,0.25); margin-top: 5px; }
+        .playback-controls { display: flex; align-items: center; gap: 15px; position: absolute; left: 50%; transform: translateX(-50%); }
+        .volume-group { display: flex; align-items: center; gap: 8px; width: 120px; }
+        .vol-icon svg { width: 16px; height: 16px; fill: #fff; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6)); }
+        #volume-slider { -webkit-appearance: none; width: 100%; height: 8px; border-radius: 4px; background: linear-gradient(to bottom, rgba(0,0,0,0.4), rgba(0,0,0,0.2)); outline: none; border: 1px solid rgba(255,255,255,0.2); box-shadow: inset 0 1px 3px rgba(0,0,0,0.3); }
+        #volume-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: linear-gradient(135deg, #fff 0%, #ddd 100%); border: 1px solid #fff; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.3); margin-top: -1px; }
+
+        .aero-btn { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4); border-radius: 20px; padding: 0; color: #fff; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; width: 40px; height: 28px; transition: all 0.1s; }
+        .aero-btn:hover { background: rgba(255,255,255,0.3); border-color: #fff; }
+        .aero-btn:active { transform: translateY(1px); background: rgba(255,255,255,0.1); }
+        .aero-btn svg { width: 14px; height: 14px; fill: #fff; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5)); }
+        .eject-btn { width: auto; padding: 0 14px; font-weight: 700; font-size: 11px; letter-spacing: 0.5px; height: 26px; }
+        .play-btn { width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.6); box-shadow: 0 4px 12px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.5); }
+        .play-btn:hover { background: rgba(255,255,255,0.4); box-shadow: 0 0 15px rgba(255,255,255,0.6); }
+        .play-btn svg { width: 18px; height: 18px; fill: #fff; filter: drop-shadow(0 0 3px rgba(0,0,0,0.5)); }
+
+        /* --- SPOTIFY BROWSER WINDOW --- */
+        #spotify-window { width: 400px; height: 500px; top: 10%; left: 10%; }
+        .browser-body { padding: 10px; overflow-y: auto; height: 100%; }
+        .track-item {
+            display: flex; align-items: center; gap: 10px; padding: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.1); cursor: pointer;
+            transition: background 0.2s;
+        }
+        .track-item:hover { background: rgba(255,255,255,0.1); }
+        .track-thumb { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; }
+        .track-data { display: flex; flex-direction: column; overflow: hidden; }
+        .t-title { font-size: 12px; font-weight: bold; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .t-artist { font-size: 10px; color: #ccc; }
+        .login-msg { text-align: center; color: white; margin-top: 50%; transform: translateY(-50%); }
+
+        /* Taskbar */
+        .taskbar { position: absolute; bottom: 0; width: 100%; height: 40px; background: rgba(10, 20, 30, 0.7); backdrop-filter: blur(10px); display: flex; align-items: center; border-top: 1px solid rgba(255,255,255,0.1); z-index: 1000; }
+        .start-btn { height: 100%; padding: 0 20px; background: rgba(255,255,255,0.05); display: flex; align-items: center; color: white; font-weight: bold; font-style: italic; font-size: 14px; cursor: pointer; border-right: 1px solid rgba(255,255,255,0.1); }
+        .tray-clock { margin-left: auto; margin-right: 15px; color: white; font-size: 12px; font-weight: 500;}
+
+        /* Utilities */
+        #file-input { display: none; }
+        #color-canvas { display: none; }
+    </style>
+</head>
+<body>
+
+    <canvas id="bg-canvas"></canvas>
+
+    <div class="desktop-container">
+        <!-- Archivos Locales -->
+        <div class="icon" onclick="openPlayer()">
+            <div class="icon-img">🎵</div>
+            <div class="icon-label">Reproductor Local</div>
+        </div>
+        
+        <!-- Spotify Connect -->
+        <div class="icon" id="spotify-connect-icon" onclick="spotifyLogin()">
+            <div class="icon-img spotify-icon">
+                <svg viewBox="0 0 24 24"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.24z"/></svg>
+            </div>
+            <div class="icon-label">Conectar Spotify</div>
+        </div>
+
+        <!-- Spotify Tracks (Oculto hasta conectar) -->
+        <div class="icon" id="spotify-tracks-icon" style="display:none;" onclick="openSpotifyBrowser()">
+            <div class="icon-img">💚</div>
+            <div class="icon-label">Mis Canciones</div>
+        </div>
+    </div>
+
+    <!-- REPRODUCTOR (VENTANA 1) -->
+    <div id="player-window" class="window">
+        <div class="window-header" onmousedown="dragStart(event, 'player-window')">
+            <div class="window-title">💿 AeroPlayer v4.0</div>
+            <div class="win-controls">
+                <div class="win-dot close-dot" onclick="closeWindow('player-window')"></div>
+                <div class="win-dot min-dot"></div>
+                <div class="win-dot max-dot"></div>
+            </div>
+        </div>
+        <div class="window-body player-body">
+            <div class="top-section">
+                <div class="display-group">
+                    <div class="player-screen">
+                        <canvas id="visualizer"></canvas>
+                    </div>
+                    <div class="track-info-container">
+                        <div class="text-line track-title"><span id="track-title-text">AEROPLAYER READY...</span></div>
+                        <div class="text-line track-artist"><span id="track-artist-text">Waiting for media</span></div>
+                    </div>
+                </div>
+                <div class="artwork-box">
+                    <img id="album-art" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0NSIgZmlsbD0iIzIyMiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjE1IiBmaWxsPSIjZmE1MjUyIi8+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iNSIgZmlsbD0iIzAwMCIvPjwvc3ZnPg==" alt="Album Art">
+                </div>
+            </div>
+            <div class="progress-container">
+                <span class="time-display" id="current-time">0:00</span>
+                <input type="range" id="seek-slider" value="0" max="100">
+                <span class="time-display" id="duration">0:00</span>
+            </div>
+            <div class="controls-bar">
+                <button class="aero-btn eject-btn" onclick="document.getElementById('file-input').click()">⏏ LOCAL</button>
+                <div class="playback-controls">
+                    <button class="aero-btn" id="prev-btn"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
+                    <button class="aero-btn play-btn" id="play-pause-btn"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+                    <button class="aero-btn" id="next-btn"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
+                </div>
+                <div class="volume-group">
+                    <div class="vol-icon"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></div>
+                    <input type="range" id="volume-slider" min="0" max="2" step="0.01" value="1">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SPOTIFY BROWSER (VENTANA 2) -->
+    <div id="spotify-window" class="window">
+        <div class="window-header" onmousedown="dragStart(event, 'spotify-window')">
+            <div class="window-title">💚 Spotify Library</div>
+            <div class="win-controls">
+                <div class="win-dot close-dot" onclick="closeWindow('spotify-window')"></div>
+            </div>
+        </div>
+        <div class="window-body browser-body" id="spotify-track-list">
+            <div class="login-msg">Cargando canciones...</div>
+        </div>
+    </div>
+
+    <div class="taskbar">
+        <div class="start-btn">Inicio</div>
+        <div class="tray-clock" id="clock">12:00 PM</div>
+    </div>
+
+    <canvas id="color-canvas"></canvas>
+    <input type="file" id="file-input" accept="audio/*">
+
+    <script>
+        // --- SPOTIFY CONFIG ---
+        const CLIENT_ID = '072d3cbd62004636bbec7624d17cbf20'; 
+        const REDIRECT_URI = window.location.href.split('#')[0]; // URL actual
+        const SCOPES = 'user-library-read';
+        let spotifyToken = null;
+        let isSpotifyMode = false; // Flag para saber si simulamos el visualizador
+
+        // --- AUTH LOGIC ---
+        function spotifyLogin() {
+            let url = 'https://accounts.spotify.com/authorize';
+            url += '?response_type=token';
+            url += '&client_id=' + encodeURIComponent(CLIENT_ID);
+            url += '&scope=' + encodeURIComponent(SCOPES);
+            url += '&redirect_uri=' + encodeURIComponent(REDIRECT_URI);
+            window.location = url;
+        }
+
+        function checkToken() {
+            const hash = window.location.hash;
+            if (hash) {
+                const params = new URLSearchParams(hash.substring(1));
+                if (params.has('access_token')) {
+                    spotifyToken = params.get('access_token');
+                    document.getElementById('spotify-connect-icon').style.display = 'none';
+                    document.getElementById('spotify-tracks-icon').style.display = 'flex';
+                    window.location.hash = ''; // Limpiar URL
+                    fetchSpotifyTracks();
+                }
+            }
+        }
+
+        async function fetchSpotifyTracks() {
+            if (!spotifyToken) return;
+            const res = await fetch('https://api.spotify.com/v1/me/tracks?limit=50', {
+                headers: { 'Authorization': 'Bearer ' + spotifyToken }
+            });
+            const data = await res.json();
+            renderSpotifyTracks(data.items);
+        }
+
+        function renderSpotifyTracks(items) {
+            const container = document.getElementById('spotify-track-list');
+            container.innerHTML = '';
+            items.forEach(item => {
+                const track = item.track;
+                const div = document.createElement('div');
+                div.className = 'track-item';
+                div.innerHTML = `
+                    <img src="${track.album.images[2].url}" class="track-thumb">
+                    <div class="track-data">
+                        <span class="t-title">${track.name}</span>
+                        <span class="t-artist">${track.artists[0].name}</span>
+                    </div>
+                `;
+                div.onclick = () => playSpotifyTrack(track);
+                container.appendChild(div);
+            });
+        }
+
+        async function playSpotifyTrack(track) {
+            if (!track.preview_url) {
+                alert("Esta canción no tiene preview disponible en la API gratuita de Spotify :(");
+                return;
+            }
+
+            // Modo Spotify Activado
+            isSpotifyMode = true; 
+            
+            // UI Update
+            document.getElementById('track-title-text').innerText = track.name;
+            document.getElementById('track-artist-text').innerText = track.artists[0].name;
+            document.getElementById('album-art').src = track.album.images[0].url;
+            
+            // Audio
+            await initAudioEngine();
+            audioElement.src = track.preview_url;
+            
+            // Extraer color para el fondo
+            const tempImg = new Image();
+            tempImg.crossOrigin = "Anonymous"; // Importante para Spotify CDN
+            tempImg.onload = function() {
+                const safeHSL = extractSafeColor(tempImg);
+                interpolateColor(safeHSL.h, safeHSL.s, safeHSL.l);
+            }
+            tempImg.src = track.album.images[0].url;
+
+            openPlayer();
+            
+            audioElement.oncanplay = async () => {
+                await playAudio();
+                audioElement.oncanplay = null; 
+            };
+        }
+
+        // --- SISTEMA ORIGINAL ---
+        function updateClock() {
+            const now = new Date();
+            let hours = now.getHours();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12 || 12;
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('clock').innerText = `${hours}:${minutes} ${ampm}`;
+        }
+        setInterval(updateClock, 1000); updateClock();
+
+        let audioCtx, analyser, source, gainNode;
+        let isAudioInitialized = false;
+        let animationFrameId; 
+        
+        const audioElement = new Audio();
+        audioElement.crossOrigin = "anonymous";
+
+        const canvas = document.getElementById('visualizer');
+        const ctx = canvas.getContext('2d');
+        const titleText = document.getElementById('track-title-text');
+        const artistText = document.getElementById('track-artist-text');
+        const playBtn = document.getElementById('play-pause-btn');
+        const volumeSlider = document.getElementById('volume-slider');
+        const seekSlider = document.getElementById('seek-slider');
+        const currTimeText = document.getElementById('current-time');
+        const durTimeText = document.getElementById('duration');
+        const albumArtImg = document.getElementById('album-art');
+        const defaultArt = albumArtImg.src; 
+        const colorCanvas = document.getElementById('color-canvas');
+        const colorCtx = colorCanvas.getContext('2d');
+        const bgCanvas = document.getElementById('bg-canvas');
+        const bgCtx = bgCanvas.getContext('2d');
+
+        const iconPlay = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+        const iconPause = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+
+        let isPlaying = false;
+        let isDraggingSlider = false;
+        let smoothedBass = 0; 
+
+        // Particles & Blobs logic (mismo que v3.12)
+        const particles = [];
+        class BokehParticle {
+            constructor(w, h) {
+                this.x = Math.random() * w; this.y = Math.random() * h;
+                this.baseSize = Math.random() * 3 + 1; this.size = this.baseSize;
+                this.speedY = Math.random() * 0.5 + 0.1; this.opacity = Math.random() * 0.3 + 0.1; 
+            }
+            update(intensity) {
+                this.y -= (this.speedY + intensity);
+                if (this.y < -10) this.y = canvas.height + 10;
+            }
+            draw(ctx, themeColor) {
+                ctx.beginPath();
+                let gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size);
+                gradient.addColorStop(0, `rgba(${themeColor.r}, ${themeColor.g}, ${themeColor.b}, ${this.opacity})`);
+                gradient.addColorStop(1, `rgba(${themeColor.r}, ${themeColor.g}, ${themeColor.b}, 0)`);
+                ctx.fillStyle = gradient; ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+        function initParticles() { particles.length = 0; for(let i=0; i<30; i++) particles.push(new BokehParticle(canvas.width, canvas.height)); }
+
+        const bgBlobs = [];
+        class LiquidBlob {
+            constructor() {
+                this.x = Math.random() * bgCanvas.width; this.y = Math.random() * bgCanvas.height;
+                this.angle = Math.random() * Math.PI * 2; this.speedBase = (Math.random() * 0.8) + 0.3; 
+                this.rad = Math.random() * 300 + 300; this.colorType = Math.floor(Math.random() * 3); 
+            }
+            update(smoothBass) {
+                let currentSpeed = this.speedBase + (smoothBass * 4.0); 
+                this.x += Math.cos(this.angle) * currentSpeed; this.y += Math.sin(this.angle) * currentSpeed;
+                this.angle += (Math.random() - 0.5) * 0.05;
+                const margin = 200;
+                if(this.x < -margin || this.x > bgCanvas.width + margin) this.angle += Math.PI;
+                if(this.y < -margin || this.y > bgCanvas.height + margin) this.angle += Math.PI;
+            }
+            draw(ctx, baseHSL, smoothBass) {
+                ctx.beginPath();
+                let h = baseHSL.h; let s = baseHSL.s; let l = baseHSL.l;
+                if (this.colorType === 1) { h = (h + 30) % 360; } if (this.colorType === 2) { h = (h - 30 + 360) % 360; }
+                let pulseRad = this.rad * (1 + smoothBass * 0.4); let alpha = 0.5 + (smoothBass * 0.4); 
+                let rgb = hslToRgb(h, s, l);
+                let grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, pulseRad);
+                grad.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`);
+                grad.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
+                ctx.fillStyle = grad; ctx.arc(this.x, this.y, pulseRad, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+        function initBgBlobs() { bgBlobs.length = 0; for(let i=0; i<8; i++) bgBlobs.push(new LiquidBlob()); }
+
+        // --- AUDIO ENGINE ---
+        async function initAudioEngine() {
+            if (!isAudioInitialized) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 64; analyser.smoothingTimeConstant = 0.8; 
+                gainNode = audioCtx.createGain(); gainNode.gain.value = volumeSlider.value;
+                source = audioCtx.createMediaElementSource(audioElement);
+                source.connect(gainNode); gainNode.connect(analyser); analyser.connect(audioCtx.destination);
+                initParticles(); initBgBlobs(); isAudioInitialized = true;
+            }
+            if (audioCtx.state === 'suspended') { await audioCtx.resume(); }
+        }
+
+        // --- COLOR LOGIC ---
+        let currentH = 210, currentS = 0.9, currentL = 0.6; 
+        let targetH = 210, targetS = 0.9, targetL = 0.6;
+        let transitionInterval = null;
+
+        function interpolateColor(tH, tS, tL) {
+            if (transitionInterval) clearInterval(transitionInterval);
+            let diffH = tH - currentH; if (diffH > 180) diffH -= 360; if (diffH < -180) diffH += 360;
+            targetH = currentH + diffH; targetS = tS; targetL = tL;
+            const frames = 120; const stepH = diffH / frames; const stepS = (targetS - currentS) / frames; const stepL = (targetL - currentL) / frames; let count = 0;
+            transitionInterval = setInterval(() => {
+                currentH += stepH; currentS += stepS; currentL += stepL; count++;
+                let renderH = currentH % 360; if(renderH < 0) renderH += 360;
+                let rgb = hslToRgb(renderH, currentS, currentL);
+                document.documentElement.style.setProperty('--theme-r', rgb.r);
+                document.documentElement.style.setProperty('--theme-g', rgb.g);
+                document.documentElement.style.setProperty('--theme-b', rgb.b);
+                if (count >= frames) { clearInterval(transitionInterval); currentH = renderH; }
+            }, 16);
+        }
+
+        function extractSafeColor(imgElement) {
+            colorCanvas.width = 50; colorCanvas.height = 50;
+            colorCtx.drawImage(imgElement, 0, 0, 50, 50);
+            const data = colorCtx.getImageData(0,0,50,50).data;
+            let r=0, g=0, b=0, c=0;
+            for(let i=0; i<data.length; i+=4) { r+=data[i]; g+=data[i+1]; b+=data[i+2]; c++; }
+            r=Math.floor(r/c); g=Math.floor(g/c); b=Math.floor(b/c);
+            let hsl = rgbToHsl(r, g, b);
+            hsl.s = Math.max(0.5, Math.min(1.0, hsl.s)); hsl.l = Math.max(0.3, Math.min(0.65, hsl.l)); 
+            return hsl;
+        }
+
+        function rgbToHsl(r, g, b){ r/=255; g/=255; b/=255; var max=Math.max(r,g,b), min=Math.min(r,g,b); var h,s,l=(max+min)/2; if(max==min){h=s=0;}else{var d=max-min; s=l>0.5?d/(2-max-min):d/(max+min); switch(max){case r:h=(g-b)/d+(g<b?6:0);break; case g:h=(b-r)/d+2;break; case b:h=(r-g)/d+4;break;} h*=60; if(h<0)h+=360;} return {h:h,s:s,l:l}; }
+        function hslToRgb(h,s,l){ var r,g,b; if(s==0){r=g=b=l;}else{ var hue2rgb=function(p,q,t){if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;}; var q=l<0.5?l*(1+s):l+s-l*s; var p=2*l-q; r=hue2rgb(p,q,h/360+1/3); g=hue2rgb(p,q,h/360); b=hue2rgb(p,q,h/360-1/3);} return {r:Math.round(r*255),g:Math.round(g*255),b:Math.round(b*255)}; }
+
+        // Local File Handler
+        document.getElementById('file-input').addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            isSpotifyMode = false; // Visualizador REAL
+            this.value = '';
+            await initAudioEngine();
+            audioElement.src = URL.createObjectURL(file);
+            
+            titleText.innerText = file.name;
+            titleText.classList.remove('scrolling');
+            artistText.innerText = "";
+            artistText.classList.remove('scrolling');
+            albumArtImg.src = defaultArt;
+            interpolateColor(210, 0.9, 0.6);
+
+            if (window.jsmediatags) {
+                window.jsmediatags.read(file, {
+                    onSuccess: function(tag) {
+                        const tags = tag.tags;
+                        if(tags.title) titleText.innerText = tags.title;
+                        if(tags.artist) artistText.innerText = tags.artist;
+                        if(tags.picture) {
+                            let base64String = "";
+                            for(let i=0; i<tags.picture.data.length; i++) base64String+=String.fromCharCode(tags.picture.data[i]);
+                            const base64 = "data:"+tags.picture.format+";base64,"+window.btoa(base64String);
+                            albumArtImg.src = base64;
+                            const tempImg = new Image();
+                            tempImg.onload = function() { const safeHSL = extractSafeColor(tempImg); interpolateColor(safeHSL.h, safeHSL.s, safeHSL.l); }
+                            tempImg.src = base64;
+                        }
+                    },
+                    onError: function(error) {}
+                });
+            }
+            openPlayer();
+            audioElement.oncanplay = async () => { await playAudio(); audioElement.oncanplay = null; };
+        });
+
+        async function playAudio() {
+            try {
+                if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
+                await audioElement.play();
+                isPlaying = true;
+                playBtn.innerHTML = iconPause;
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                renderVisualizer();
+            } catch (err) { isPlaying = false; playBtn.innerHTML = iconPlay; }
+        }
+
+        playBtn.addEventListener('click', async () => {
+            if (!audioElement.src) return; 
+            await initAudioEngine();
+            if (isPlaying) { audioElement.pause(); isPlaying = false; playBtn.innerHTML = iconPlay; }
+            else { audioElement.play(); isPlaying = true; playBtn.innerHTML = iconPause; renderVisualizer(); }
+        });
+
+        volumeSlider.addEventListener('input', (e) => { if (gainNode) gainNode.gain.value = e.target.value; });
+        audioElement.addEventListener('timeupdate', () => { if (!isDraggingSlider) { seekSlider.max = audioElement.duration; seekSlider.value = audioElement.currentTime; currTimeText.innerText = formatTime(audioElement.currentTime); durTimeText.innerText = formatTime(audioElement.duration); }});
+        seekSlider.addEventListener('input', () => { isDraggingSlider = true; currTimeText.innerText = formatTime(seekSlider.value); });
+        seekSlider.addEventListener('change', () => { audioElement.currentTime = seekSlider.value; isDraggingSlider = false; });
+        function formatTime(seconds) { const min = Math.floor(seconds / 60); const sec = Math.floor(seconds % 60); return `${min}:${sec < 10 ? '0' : ''}${sec}`; }
+
+        function renderVisualizer() {
+            if (!isPlaying) return;
+            animationFrameId = requestAnimationFrame(renderVisualizer);
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            // Si es Spotify, datos simulados. Si es local, datos reales.
+            if (isSpotifyMode) {
+                // Simulación Rítmica
+                let time = Date.now() / 1000;
+                for(let i=0; i<bufferLength; i++) {
+                    // Generar ruido perlin-ish basado en tiempo
+                    let val = Math.sin(time * 5 + i * 0.5) * 50 + 100;
+                    if(i < 5) val *= 1.5; // Bajos simulados
+                    dataArray[i] = val * (Math.random()*0.2 + 0.8);
+                }
+            } else {
+                analyser.getByteFrequencyData(dataArray);
+            }
+
+            let bassSum = 0;
+            for(let i=0; i<6; i++) bassSum += dataArray[i]; 
+            const bassInstant = bassSum / (6 * 255); 
+            smoothedBass += (bassInstant - smoothedBass) * 0.3; 
+
+            bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+            if (!audioElement.src || audioElement.paused) {
+                let bgGrad = bgCtx.createLinearGradient(0, 0, bgCanvas.width, bgCanvas.height);
+                bgGrad.addColorStop(0, '#4facfe'); bgGrad.addColorStop(1, '#00f2fe');
+                bgCtx.fillStyle = bgGrad; bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+            } else {
+                let baseH = currentH; let baseS = currentS; let baseL = Math.max(0.1, currentL * 0.5); 
+                let rgbBase = hslToRgb(baseH, baseS, baseL); let rgbSec = hslToRgb((baseH + 40)%360, baseS, baseL * 0.8);
+                let bgGrad = bgCtx.createLinearGradient(0, 0, bgCanvas.width, bgCanvas.height);
+                bgGrad.addColorStop(0, `rgb(${rgbBase.r}, ${rgbBase.g}, ${rgbBase.b})`);
+                bgGrad.addColorStop(1, `rgb(${rgbSec.r}, ${rgbSec.g}, ${rgbSec.b})`);
+                bgCtx.fillStyle = bgGrad; bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+                bgCtx.globalCompositeOperation = 'screen'; 
+                for(let blob of bgBlobs) { blob.update(smoothedBass); blob.draw(bgCtx, {h: currentH, s: currentS, l: currentL}, smoothedBass); }
+                bgCtx.globalCompositeOperation = 'source-over';
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            let winRGB = hslToRgb(currentH, currentS, currentL);
+            if (smoothedBass > 0.6 && Math.random() > 0.5) { particles.push(new BokehParticle(canvas.width, canvas.height)); if(particles.length > 50) particles.shift(); }
+            for(let p of particles) { p.update(smoothedBass); p.draw(ctx, winRGB); }
+
+            const barWidth = (canvas.width / bufferLength); let barHeight; let x = 0;
+            for(let i = 0; i < bufferLength; i++) {
+                barHeight = (dataArray[i] / 255) * (canvas.height * 0.9); 
+                let barGradient = ctx.createLinearGradient(0, canvas.height, 0, canvas.height - barHeight);
+                barGradient.addColorStop(0, `rgba(${winRGB.r}, ${winRGB.g}, ${winRGB.b}, 0.9)`);
+                barGradient.addColorStop(0.6, `rgba(${winRGB.r}, ${winRGB.g}, ${winRGB.b}, 0.5)`);
+                barGradient.addColorStop(1, `rgba(${Math.min(255, winRGB.r+50)}, ${Math.min(255, winRGB.g+50)}, ${Math.min(255, winRGB.b+50)}, 0.2)`);
+                ctx.fillStyle = barGradient; ctx.beginPath();
+                let dynamicHeight = barHeight * (1 + smoothedBass * 0.1);
+                ctx.roundRect(x + 1, canvas.height - dynamicHeight, barWidth - 2, dynamicHeight, [3, 3, 0, 0]);
+                ctx.fill();
+                ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.fillRect(x + 1, canvas.height - dynamicHeight, barWidth - 2, 2);
+                x += barWidth;
+            }
+        }
+
+        // Window Management
+        function openPlayer() { document.getElementById('player-window').classList.add('active'); resizeCanvas(); }
+        function openSpotifyBrowser() { document.getElementById('spotify-window').classList.add('active'); }
+        function closeWindow(id) { document.getElementById(id).classList.remove('active'); }
+
+        let dragTarget = null, startX, startY, initLeft, initTop;
+        function dragStart(e, id) { dragTarget = document.getElementById(id); startX = e.clientX; startY = e.clientY; const rect = dragTarget.getBoundingClientRect(); initLeft = rect.left; initTop = rect.top; dragTarget.style.transform = 'none'; dragTarget.style.left = initLeft + 'px'; dragTarget.style.top = initTop + 'px'; }
+        document.addEventListener('mousemove', (e) => { if (dragTarget) { dragTarget.style.left = (initLeft + (e.clientX - startX)) + 'px'; dragTarget.style.top = (initTop + (e.clientY - startY)) + 'px'; }});
+        document.addEventListener('mouseup', () => { dragTarget = null; });
+        function resizeCanvas() { canvas.width = canvas.parentElement.offsetWidth; canvas.height = canvas.parentElement.offsetHeight; bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight; initParticles(); initBgBlobs(); }
+        window.addEventListener('resize', resizeCanvas); setTimeout(resizeCanvas, 100);
+        
+        // Check for spotify return on load
+        checkToken();
+
+    </script>
+</body>
+</html>
