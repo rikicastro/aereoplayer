@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AeroPlayer - Y2K Edition v5.0 Unlimited</title>
+    <title>AeroPlayer - Y2K Edition v5.3 Smart Connection</title>
     <!-- Librería para MP3 locales -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
     <style>
@@ -205,7 +205,7 @@
     <!-- REPRODUCTOR (VENTANA 1) -->
     <div id="player-window" class="window">
         <div class="window-header" onmousedown="dragStart(event, 'player-window')">
-            <div class="window-title">💿 AeroPlayer v5.0</div>
+            <div class="window-title">💿 AeroPlayer v5.3</div>
             <div class="win-controls">
                 <div class="win-dot close-dot" onclick="closeWindow('player-window')"></div>
                 <div class="win-dot min-dot"></div>
@@ -265,7 +265,7 @@
                     Bienvenido al Explorador.<br>
                     Busca cualquier canción para reproducirla<br>
                     con visualización en tiempo real.<br><br>
-                    <em style="opacity:0.7;">Powered by Piped API</em>
+                    <em style="opacity:0.7;">Powered by Piped API Multi-Server</em>
                 </div>
             </div>
         </div>
@@ -280,25 +280,88 @@
     <input type="file" id="file-input" accept="audio/*">
 
     <script>
-        // --- PIPED API ENGINE (THE WORKAROUND) ---
-        // Usamos una instancia pública fiable de Piped.
-        const PIPED_API = "https://pipedapi.kavin.rocks";
+        // --- PIPED API ENGINE (SMART FAILOVER + SHUFFLE) ---
+        
+        // 1. LISTA MASIVA DE INSTANCIAS PÚBLICAS
+        const PIPED_RAW_LIST = [
+            "https://pipedapi.kavin.rocks",
+            "https://api.piped.private.coffee",
+            "https://pipedapi.drgns.space",
+            "https://pipedapi.tokhmi.xyz",
+            "https://pipedapi.moomoo.me",
+            "https://pipedapi.smnz.de",
+            "https://pipedapi.adminforge.de",
+            "https://api.piped.privacy.com.de",
+            "https://api.piped.projectsegfau.lt",
+            "https://pipedapi.leptons.xyz",
+            "https://pipedapi.r4fo.com",
+            "https://api.piped.forcad.org",
+            "https://pa.il.ax",
+            "https://p.euten.eu"
+        ];
+
+        // 2. FUNCIÓN PARA BARAJAR (SHUFFLE)
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // Lista barajada al inicio
+        const PIPED_INSTANCES = shuffleArray([...PIPED_RAW_LIST]);
+
+        // 3. FETCH CON INTELIGENCIA
+        async function fetchWithFailover(path) {
+            let lastError = null;
+            
+            for (const instance of PIPED_INSTANCES) {
+                try {
+                    // Feedback visual en consola
+                    console.log(`📡 Probando servidor: ${instance}`);
+                    
+                    const controller = new AbortController();
+                    // 10 SEGUNDOS de timeout por si va lento
+                    const timeoutId = setTimeout(() => controller.abort(), 10000); 
+                    
+                    const res = await fetch(`${instance}${path}`, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    
+                    if (res.ok) {
+                        console.log(`✅ Conectado a: ${instance}`);
+                        return await res.json();
+                    } else {
+                        console.warn(`⚠️ Error ${res.status} en ${instance}`);
+                    }
+                } catch (e) {
+                    console.warn(`❌ Falló ${instance}:`, e.message);
+                    lastError = e;
+                }
+            }
+            
+            // Si llegamos aquí, todo falló
+            console.error("☠️ Todos los servidores fallaron");
+            throw lastError || new Error("Red Piped no disponible");
+        }
 
         async function executeSearch() {
             const query = document.getElementById('search-input').value;
             if(!query) return;
             
             const container = document.getElementById('results-container');
-            container.innerHTML = '<div style="text-align:center; padding:20px; color:white;">Conectando al servidor...</div>';
+            container.innerHTML = '<div style="text-align:center; padding:20px; color:white;">🔄 Buscando servidor disponible...</div>';
 
             try {
-                // Paso 1: Buscar
-                const res = await fetch(`${PIPED_API}/search?q=${encodeURIComponent(query)}&filter=music_songs`);
-                const data = await res.json();
+                const data = await fetchWithFailover(`/search?q=${encodeURIComponent(query)}&filter=music_songs`);
                 renderResults(data.items);
             } catch(e) {
-                console.error(e);
-                container.innerHTML = '<div style="color:#ff5f56; text-align:center; padding:20px;">Error de conexión con Piped.<br>Intenta de nuevo.</div>';
+                // Mensaje amigable para el usuario
+                if (e.name === 'TypeError' && e.message === 'Failed to fetch') {
+                    container.innerHTML = '<div style="color:#ff9e9e; text-align:center; padding:20px;">🚫 Error de Red.<br>Posible bloqueo por AdBlock/Extensiones.<br>Por favor, desactívalos para este sitio.</div>';
+                } else {
+                    container.innerHTML = `<div style="color:#ff5f56; text-align:center; padding:20px;">Servidores saturados.<br>Intenta de nuevo en 1 min.</div>`;
+                }
             }
         }
 
@@ -314,7 +377,6 @@
             }
 
             items.forEach(item => {
-                // Filtrar solo lo que parece canción
                 if(item.type !== 'stream') return;
 
                 const div = document.createElement('div');
@@ -326,16 +388,14 @@
                         <span class="t-artist">${item.uploaderName.replace(' - Topic', '')}</span>
                     </div>
                 `;
-                // Al hacer click, iniciamos el proceso de extracción de audio
                 div.onclick = () => loadPipedTrack(item);
                 container.appendChild(div);
             });
         }
 
         async function loadPipedTrack(item) {
-            // UI Feedback
-            document.getElementById('track-title-text').innerText = "CARGANDO...";
-            document.getElementById('track-artist-text').innerText = "Obteniendo flujo de audio...";
+            document.getElementById('track-title-text').innerText = "CONECTANDO...";
+            document.getElementById('track-artist-text').innerText = "Buscando audio...";
             
             // Cargar Arte
             const img = document.getElementById('album-art');
@@ -346,24 +406,19 @@
             };
             img.src = item.thumbnail;
 
-            openPlayer(); // Abrir reproductor si no está abierto
+            openPlayer(); 
 
             try {
-                // Paso 2: Obtener Streams del video ID
-                const res = await fetch(`${PIPED_API}/streams/${item.url.split('v=')[1]}`);
-                const data = await res.json();
+                const videoId = item.url.split('v=')[1];
+                const data = await fetchWithFailover(`/streams/${videoId}`);
                 
-                // Buscar el mejor stream de audio (m4a suele ser mejor para web audio)
                 const audioStream = data.audioStreams.find(s => s.mimeType.includes('audio/mp4')) || data.audioStreams[0];
                 
                 if(audioStream) {
                     await initAudioEngine();
-                    
-                    // CRUCIAL: CrossOrigin para que el visualizador funcione
                     audioElement.crossOrigin = "anonymous"; 
                     audioElement.src = audioStream.url;
                     
-                    // Actualizar textos finales
                     document.getElementById('track-title-text').innerText = item.title;
                     document.getElementById('track-artist-text').innerText = item.uploaderName.replace(' - Topic', '');
 
@@ -373,12 +428,11 @@
                         renderVisualizer();
                     });
                 } else {
-                    alert("No se encontró flujo de audio compatible.");
+                    alert("Formato de audio no compatible.");
                 }
 
             } catch(e) {
-                console.error(e);
-                alert("Error extrayendo audio. La instancia de Piped puede estar saturada.");
+                alert("Error cargando audio. Intenta otra canción.");
             }
         }
 
@@ -398,7 +452,6 @@
         let animationFrameId; 
         
         const audioElement = new Audio();
-        // ESTO ES CLAVE PARA EL VISUALIZADOR EN STREAMING
         audioElement.crossOrigin = "anonymous"; 
 
         const canvas = document.getElementById('visualizer');
